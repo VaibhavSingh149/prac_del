@@ -1,58 +1,53 @@
 pipeline {
-  agent {
-    docker {
-      image 'python:3.10-slim'
-      args '-u root:root'
-    }
-  }
+    agent any
 
-  environment {
-    APP_DIR = 'app'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        echo '📥 Checking out code...'
-        checkout scm
-      }
+    environment {
+        IMAGE_NAME = 'flask-app'
     }
 
-    stage('Install Dependencies') {
-      steps {
-        echo '📦 Installing Python dependencies...'
-        sh 'pip install -r requirements.txt'
-      }
+    stages {
+        stage('Clone') {
+            steps {
+                git 'https://github.com/VaibhavSingh149/prac_del'
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh 'pip install -r requirements.txt'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'pytest'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh "docker build -t $IMAGE_NAME ."
+            }
+        }
+
+        stage('Run Docker Container') {
+            steps {
+                sh "docker run -d -p 5000:5000 --name ${IMAGE_NAME}-container $IMAGE_NAME"
+            }
+        }
     }
 
-    stage('Run Tests') {
-      steps {
-        echo '🧪 Running unit tests...'
-        sh 'pytest --junitxml=results.xml'
-      }
+    post {
+        always {
+            echo 'Cleaning up containers...'
+            sh 'docker stop flask-app-container || true'
+            sh 'docker rm flask-app-container || true'
+        }
+        failure {
+            echo '❌ Build failed!'
+        }
+        success {
+            echo '✅ Build succeeded!'
+        }
     }
-
-    stage('Archive Test Results') {
-      steps {
-        echo '📁 Archiving test results...'
-        junit 'results.xml'
-      }
-    }
-
-    stage('Build Docker Image') {
-      steps {
-        echo '🐳 Building Docker image...'
-        sh 'docker build -t flask-app .'
-      }
-    }
-  }
-
-  post {
-    success {
-      echo '✅ Build and tests passed!'
-    }
-    failure {
-      echo '❌ Something went wrong!'
-    }
-  }
 }
